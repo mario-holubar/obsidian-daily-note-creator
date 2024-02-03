@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "daily-note-creator",
+	"name": "Daily note creator",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Automatically creates missing daily notes",
+	"author": "Mario Holubar",
+	"authorUrl": "https://github.com/mario-holubar",
+	"fundingUrl": "https://ko-fi.com/mario_holubar",
 	"isDesktopOnly": false
 }
