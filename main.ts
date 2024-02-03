@@ -1,6 +1,5 @@
-import { App, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
+import { App, Modal, moment, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import { appHasDailyNotesPluginLoaded, getDailyNoteSettings, getAllDailyNotes, getDailyNote, createDailyNote } from "obsidian-daily-notes-interface";
-import { moment } from 'obsidian';
 
 interface DailyNoteCreatorSettings {
 }
@@ -26,6 +25,19 @@ function getFirstAndLastDates(dailyNotes: Record<string, TFile>) {
 	return { first: firstDate, last: lastDate };
 }
 
+// Find all dates for which daily notes are missing between start and end date
+function findMissingDates(dailyNotes: Record<string, TFile>, start: moment.Moment, end: moment.Moment) {
+	let missingDates = [];
+	let currentDate = start.clone();
+	while (currentDate.isSameOrBefore(end)) {
+		if (!getDailyNote(currentDate, dailyNotes)) {
+			missingDates.push(currentDate.clone());
+		}
+		currentDate.add(1, "day");
+	}
+	return missingDates;
+}
+
 export default class DailyNoteCreator extends Plugin {
 	settings: DailyNoteCreatorSettings;
 
@@ -38,7 +50,9 @@ export default class DailyNoteCreator extends Plugin {
 		
 		this.app.workspace.onLayoutReady(async () => {
 			const dailyNotes = await getAllDailyNotes();
-			console.log(getFirstAndLastDates(dailyNotes));
+			const { first, last } = getFirstAndLastDates(dailyNotes);
+			const missing = findMissingDates(dailyNotes, first, last);
+			console.log(missing);
 		});
 	}
 
