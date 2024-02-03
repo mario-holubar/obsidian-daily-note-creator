@@ -38,6 +38,13 @@ function findMissingDates(dailyNotes: Record<string, TFile>, start: moment.Momen
 	return missingDates;
 }
 
+// Create daily notes
+async function createDailyNotes(dates: moment.Moment[]) {
+	await Promise.all(dates.map(async date => {
+		await createDailyNote(date);
+	}));
+}
+
 export default class DailyNoteCreator extends Plugin {
 	settings: DailyNoteCreatorSettings;
 
@@ -51,8 +58,9 @@ export default class DailyNoteCreator extends Plugin {
 		this.app.workspace.onLayoutReady(async () => {
 			const dailyNotes = await getAllDailyNotes();
 			const { first, last } = getFirstAndLastDates(dailyNotes);
-			const missing = findMissingDates(dailyNotes, first, last);
-			console.log(missing);
+			const today = moment();
+			const missing = findMissingDates(dailyNotes, first, today);
+			await createDailyNotes(missing);
 		});
 	}
 
