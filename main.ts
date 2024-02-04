@@ -66,27 +66,25 @@ class DailyNoteCreatorModal extends Modal {
 	onOpen() {
 		let {titleEl, contentEl} = this;
 		titleEl.setText('Create missing daily notes');
-		
+
 		// Create input fields for start and end date
 		let startDateInput = new Setting(contentEl)
 			.setName('Start date')
-			.setDesc('The first date for which to create a daily note')
-		startDateInput.controlEl.createEl('input', { attr: { type: 'date' }, value: this.startDate.format('YYYY-MM-DD') }).addEventListener('change', (event) => {
-			const startDate = moment((event.target as HTMLInputElement).value);
-			if (startDate.isValid()) {
-				this.startDate = startDate;
-				update();
-			}
+		startDateInput.controlEl.createEl('input', {
+			attr: { type: 'date' },
+			value: this.startDate.format('YYYY-MM-DD')
+		}).addEventListener('change', (event) => {
+			this.startDate = moment((event.target as HTMLInputElement).value);
+			update();
 		});
 		let endDateInput = new Setting(contentEl)
 			.setName('End date')
-			.setDesc('The last date for which to create a daily note');
-		endDateInput.controlEl.createEl('input', { attr: { type: 'date' }, value: this.endDate.format('YYYY-MM-DD') }).addEventListener('change', (event) => {
-			const endDate = moment((event.target as HTMLInputElement).value);
-			if (endDate.isValid()) {
-				this.endDate = endDate;
-				update();
-			}
+		endDateInput.controlEl.createEl('input', {
+			attr: { type: 'date' },
+			value: this.endDate.format('YYYY-MM-DD')
+		}).addEventListener('change', (event) => {
+			this.endDate = moment((event.target as HTMLInputElement).value);
+			update();
 		});
 		
 		// Create confirmation buttons
@@ -104,8 +102,18 @@ class DailyNoteCreatorModal extends Modal {
 					this.close();
 				}));
 
+		// Find missing dates and update labels
 		let update = () => {
-			this.missingDates = findMissingDates(this.dailyNotes, this.startDate, this.endDate);
+			let { format } = getDailyNoteSettings();
+			const startDateValid = this.startDate.isValid() && this.startDate.year().toString().length === 4;
+			const endDateValid = this.endDate.isValid() && this.endDate.year().toString().length === 4;
+			startDateInput.setDesc(startDateValid ? this.startDate.format(format) : "Invalid date");
+			endDateInput.setDesc(endDateValid ? this.endDate.format(format) : "Invalid date");
+			if (startDateValid && endDateValid) {
+				this.missingDates = findMissingDates(this.dailyNotes, this.startDate, this.endDate);
+			} else {
+				this.missingDates = [];
+			}
 			confirmation.setName(`Create ${this.missingDates.length} missing daily notes?`);
 		}
 
