@@ -2,9 +2,13 @@ import { App, Modal, moment, Notice, Plugin, PluginSettingTab, Setting, TFile } 
 import { appHasDailyNotesPluginLoaded, getDailyNoteSettings, getAllDailyNotes, getDailyNote, createDailyNote } from "obsidian-daily-notes-interface";
 
 interface DailyNoteCreatorSettings {
+	autoCreate: boolean;
+	autoCreateLimit: number;
 }
 
 const DEFAULT_SETTINGS: DailyNoteCreatorSettings = {
+	autoCreate: true,
+	autoCreateLimit: 1,
 }
 
 // Find the date of the first and last daily notes that exist in the vault
@@ -33,7 +37,7 @@ function findMissingDates(dailyNotes: Record<string, TFile>, start: moment.Momen
 		if (!getDailyNote(currentDate, dailyNotes)) {
 			missingDates.push(currentDate.clone());
 		}
-		currentDate.add(1, "day");
+		currentDate.add(1, `day`);
 	}
 	return missingDates;
 }
@@ -44,7 +48,7 @@ async function createDailyNotes(dates: moment.Moment[]) {
 		await createDailyNote(date);
 	}));
 	if (dates.length > 0) {
-		new Notice(`Created ${dates.length} daily notes`);
+		new Notice(`Created ${dates.length} daily note` + (dates.length == 1 ? `` : `s`));
 	}
 }
 
@@ -54,13 +58,15 @@ class DailyNoteCreatorModal extends Modal {
 	startDate: moment.Moment;
 	endDate: moment.Moment;
 	missingDates: moment.Moment[];
+	onConfirm: (() => void) | undefined;
 
-	constructor(app: App, dailyNotes: Record<string, TFile>, startDate: moment.Moment, endDate: moment.Moment) {
+	constructor(app: App, dailyNotes: Record<string, TFile>, startDate: moment.Moment, endDate: moment.Moment, onConfirm?: (() => void) | undefined) {
 		super(app);
 		this.dailyNotes = dailyNotes;
 		this.startDate = startDate;
 		this.endDate = endDate;
 		this.missingDates = [];
+		this.onConfirm = onConfirm;
 	}
 
 	onOpen() {
@@ -92,9 +98,10 @@ class DailyNoteCreatorModal extends Modal {
 			.addButton(confirm => confirm
 				.setButtonText(`Confirm`)
 				.setCta()
-				.onClick(() => {
+				.onClick(async () => {
 					this.close();
-					createDailyNotes(this.missingDates);
+					await createDailyNotes(this.missingDates);
+					this.onConfirm && this.onConfirm();
 				}))
 			.addButton(cancel => cancel
 				.setButtonText(`Cancel`)
@@ -107,14 +114,14 @@ class DailyNoteCreatorModal extends Modal {
 			let { format } = getDailyNoteSettings();
 			const startDateValid = this.startDate.isValid() && this.startDate.year().toString().length === 4;
 			const endDateValid = this.endDate.isValid() && this.endDate.year().toString().length === 4;
-			startDateInput.setDesc(startDateValid ? this.startDate.format(format) : "Invalid date");
-			endDateInput.setDesc(endDateValid ? this.endDate.format(format) : "Invalid date");
+			startDateInput.setDesc(startDateValid ? this.startDate.format(format) : `Invalid date`);
+			endDateInput.setDesc(endDateValid ? this.endDate.format(format) : `Invalid date`);
 			if (startDateValid && endDateValid) {
 				this.missingDates = findMissingDates(this.dailyNotes, this.startDate, this.endDate);
 			} else {
 				this.missingDates = [];
 			}
-			confirmation.setName(`Create ${this.missingDates.length} missing daily notes?`);
+			confirmation.setName(`Create ${this.missingDates.length} missing daily note` + (this.missingDates.length == 1 ? `?` : `s?`));
 		}
 
 		update();
@@ -147,13 +154,20 @@ export default class DailyNoteCreator extends Plugin {
 			}
 		});
 		
-		this.app.workspace.onLayoutReady(async () => {
-			const dailyNotes = await getAllDailyNotes();
-			const { first, last } = getFirstAndLastDates(dailyNotes);
-			const today = moment();
-			const missing = findMissingDates(dailyNotes, first, today);
-			await createDailyNotes(missing);
-		});
+		// Create missing daily notes on startup
+		if (this.settings.autoCreate) {
+			this.app.workspace.onLayoutReady(async () => {
+				const dailyNotes = await getAllDailyNotes();
+				const { last } = getFirstAndLastDates(dailyNotes);
+				const today = moment();
+				const missing = findMissingDates(dailyNotes, last, today);
+				if (missing.length <= this.settings.autoCreateLimit) {
+					await createDailyNotes(missing);
+				} else {
+					new DailyNoteCreatorModal(this.app, dailyNotes, last, today).open();
+				}
+			});
+		}
 	}
 
 	onunload() {
@@ -179,5 +193,54 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
+
+		// Find missing notes since first daily note
+		const dailyNotes = getAllDailyNotes();
+		const { first, last } = getFirstAndLastDates(dailyNotes);
+		const missing = findMissingDates(dailyNotes, first, moment());
+		const n = missing.length;
+
+		// Create backfill button
+		let { format } = getDailyNoteSettings();
+		new Setting(containerEl)
+			.setName(n.toString() + ` missing daily note` + (n == 1 ? `` : `s`))
+			.setDesc(`Since first daily (` + (first ? first.format(format) : `never`) + `)`)
+			.addButton(toggle => toggle
+				.setButtonText(`Create missing daily notes...`)
+				.setCta()
+				.onClick(() => {
+					new DailyNoteCreatorModal(this.app, dailyNotes, first, moment(), () => {
+						this.display();
+					}).open();
+				})
+			);
+
+		// Create auto-create toggle
+		new Setting(containerEl)
+			.setName(`Auto-create missed daily notes when starting Obsidian`)
+			.setDesc(`Since last daily (` + (last ? last.format(format) : `never`) + `)`)
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoCreate)
+				.onChange(async () => {
+					this.plugin.settings.autoCreate = !this.plugin.settings.autoCreate;
+					await this.plugin.saveSettings();
+					this.display();
+				})
+			);
+		// Create auto-create limit slider
+		if (this.plugin.settings.autoCreate) {
+			let limit = new Setting(containerEl)
+				.setName(`Auto-create limit: ` + this.plugin.settings.autoCreateLimit)
+				.setDesc(`Maximum number of files to create without asking for confirmation.`)
+				.addSlider(slider => slider
+					.setValue(this.plugin.settings.autoCreateLimit)
+					.setLimits(0, 10, 1)
+					.onChange(async (value) => {
+						this.plugin.settings.autoCreateLimit = value;
+						await this.plugin.saveSettings();
+						limit.setName(`Auto-create limit: ` + this.plugin.settings.autoCreateLimit)
+					})
+				);
+		}
 	}
 }
