@@ -43,6 +43,79 @@ async function createDailyNotes(dates: moment.Moment[]) {
 	await Promise.all(dates.map(async date => {
 		await createDailyNote(date);
 	}));
+	if (dates.length > 0) {
+		new Notice(`Created ${dates.length} daily notes`);
+	}
+}
+
+// Modal dialog for creating missing daily notes
+class DailyNoteCreatorModal extends Modal {
+	dailyNotes: Record<string, TFile>;
+	startDate: moment.Moment;
+	endDate: moment.Moment;
+	missingDates: moment.Moment[];
+
+	constructor(app: App, dailyNotes: Record<string, TFile>, startDate: moment.Moment, endDate: moment.Moment) {
+		super(app);
+		this.dailyNotes = dailyNotes;
+		this.startDate = startDate;
+		this.endDate = endDate;
+		this.missingDates = [];
+	}
+
+	onOpen() {
+		let {titleEl, contentEl} = this;
+		titleEl.setText('Create missing daily notes');
+		
+		// Create input fields for start and end date
+		let startDateInput = new Setting(contentEl)
+			.setName('Start date')
+			.setDesc('The first date for which to create a daily note')
+		startDateInput.controlEl.createEl('input', { attr: { type: 'date' }, value: this.startDate.format('YYYY-MM-DD') }).addEventListener('change', (event) => {
+			const startDate = moment((event.target as HTMLInputElement).value);
+			if (startDate.isValid()) {
+				this.startDate = startDate;
+				update();
+			}
+		});
+		let endDateInput = new Setting(contentEl)
+			.setName('End date')
+			.setDesc('The last date for which to create a daily note');
+		endDateInput.controlEl.createEl('input', { attr: { type: 'date' }, value: this.endDate.format('YYYY-MM-DD') }).addEventListener('change', (event) => {
+			const endDate = moment((event.target as HTMLInputElement).value);
+			if (endDate.isValid()) {
+				this.endDate = endDate;
+				update();
+			}
+		});
+		
+		// Create confirmation buttons
+		let confirmation = new Setting(contentEl)
+			.addButton(confirm => confirm
+				.setButtonText(`Confirm`)
+				.setCta()
+				.onClick(() => {
+					this.close();
+					createDailyNotes(this.missingDates);
+				}))
+			.addButton(cancel => cancel
+				.setButtonText(`Cancel`)
+				.onClick(() => {
+					this.close();
+				}));
+
+		let update = () => {
+			this.missingDates = findMissingDates(this.dailyNotes, this.startDate, this.endDate);
+			confirmation.setName(`Create ${this.missingDates.length} missing daily notes?`);
+		}
+
+		update();
+	}
+
+	onClose() {
+		let {contentEl} = this;
+		contentEl.empty();
+	}
 }
 
 export default class DailyNoteCreator extends Plugin {
@@ -54,6 +127,17 @@ export default class DailyNoteCreator extends Plugin {
 
 		// Create settings tab
 		this.addSettingTab(new DailyNoteCreatorSettingTab(this.app, this));
+		
+		// Create command to open the modal dialog
+		this.addCommand({
+			id: 'create-missing-daily-notes',
+			name: 'Create missing daily notes',
+			callback: () => {
+				const dailyNotes = getAllDailyNotes();
+				const { last } = getFirstAndLastDates(dailyNotes);
+				new DailyNoteCreatorModal(this.app, dailyNotes, last, moment()).open();
+			}
+		});
 		
 		this.app.workspace.onLayoutReady(async () => {
 			const dailyNotes = await getAllDailyNotes();
