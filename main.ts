@@ -148,6 +148,10 @@ export default class DailyNoteCreator extends Plugin {
 			id: 'create-missing-daily-notes',
 			name: 'Create missing daily notes',
 			callback: () => {
+				if (!appHasDailyNotesPluginLoaded()) {
+					new Notice(`Daily notes are disabled`);
+					return;
+				}
 				const dailyNotes = getAllDailyNotes();
 				const { last } = getFirstAndLastDates(dailyNotes);
 				const today = moment();
@@ -156,10 +160,14 @@ export default class DailyNoteCreator extends Plugin {
 		});
 		
 		// Create daily notes on startup
-		if (this.settings.autoCreateCurrentDaily) {
-			if (this.settings.autoCreateMissedDailies) {
-				// Also create missed dailies
-				this.app.workspace.onLayoutReady(async () => {
+		this.app.workspace.onLayoutReady(async () => {
+			if (!appHasDailyNotesPluginLoaded()) {
+				new Notice(`Daily Note Creator: Daily notes are disabled`);
+				return;
+			}
+			if (this.settings.autoCreateCurrentDaily) {
+				if (this.settings.autoCreateMissedDailies) {
+					// Create missed daily notes
 					const dailyNotes = await getAllDailyNotes();
 					const { last } = getFirstAndLastDates(dailyNotes);
 					const today = moment();
@@ -170,12 +178,12 @@ export default class DailyNoteCreator extends Plugin {
 					} else {
 						new DailyNoteCreatorModal(this.app, dailyNotes, last ?? today, today).open();
 					}
-				});
-			} else {
-				// Only create today's daily note
-				createDailyNote(moment());
+				} else {
+					// Only create today's daily note
+					createDailyNote(moment());
+				}
 			}
-		}
+		});
 	}
 
 	onunload() {
@@ -201,6 +209,11 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 	display(): void {
 		const {containerEl} = this;
 		containerEl.empty();
+		
+		if (!appHasDailyNotesPluginLoaded()) {
+			containerEl.createEl(`body`, {text: `Enable daily notes to use this plugin.`});
+			return;
+		}
 
 		// Find missing notes since first daily note
 		const dailyNotes = getAllDailyNotes();
