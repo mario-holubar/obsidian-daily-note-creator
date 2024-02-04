@@ -2,13 +2,13 @@ import { App, Modal, moment, Notice, Plugin, PluginSettingTab, Setting, TFile } 
 import { appHasDailyNotesPluginLoaded, getDailyNoteSettings, getAllDailyNotes, getDailyNote, createDailyNote } from "obsidian-daily-notes-interface";
 
 interface DailyNoteCreatorSettings {
-	autoCreate: boolean;
-	autoCreateLimit: number;
+	autoCreateCurrentDaily: boolean;
+	autoCreateMissedDailies: boolean;
 }
 
 const DEFAULT_SETTINGS: DailyNoteCreatorSettings = {
-	autoCreate: true,
-	autoCreateLimit: 1,
+	autoCreateCurrentDaily: true,
+	autoCreateMissedDailies: true,
 }
 
 // Find the date of the first and last daily notes that exist in the vault
@@ -17,7 +17,7 @@ function getFirstAndLastDates(dailyNotes: Record<string, TFile>) {
 
 	// Fall back to today's date if there are no daily notes
 	if (sortedDailyNotes.length === 0) {
-		return { first: moment(), last: moment() };
+		return { first: null, last: null };
 	}
 
 	let { format } = getDailyNoteSettings();
@@ -150,23 +150,31 @@ export default class DailyNoteCreator extends Plugin {
 			callback: () => {
 				const dailyNotes = getAllDailyNotes();
 				const { last } = getFirstAndLastDates(dailyNotes);
-				new DailyNoteCreatorModal(this.app, dailyNotes, last, moment()).open();
+				const today = moment();
+				new DailyNoteCreatorModal(this.app, dailyNotes, last ?? today, today).open();
 			}
 		});
 		
-		// Create missing daily notes on startup
-		if (this.settings.autoCreate) {
-			this.app.workspace.onLayoutReady(async () => {
-				const dailyNotes = await getAllDailyNotes();
-				const { last } = getFirstAndLastDates(dailyNotes);
-				const today = moment();
-				const missing = findMissingDates(dailyNotes, last, today);
-				if (missing.length <= this.settings.autoCreateLimit) {
-					await createDailyNotes(missing);
-				} else {
-					new DailyNoteCreatorModal(this.app, dailyNotes, last, today).open();
-				}
-			});
+		// Create daily notes on startup
+		if (this.settings.autoCreateCurrentDaily) {
+			if (this.settings.autoCreateMissedDailies) {
+				// Also create missed dailies
+				this.app.workspace.onLayoutReady(async () => {
+					const dailyNotes = await getAllDailyNotes();
+					const { last } = getFirstAndLastDates(dailyNotes);
+					const today = moment();
+					const missing = findMissingDates(dailyNotes, last ?? today, today);
+					// Ask for confirmation after one week
+					if (missing.length <= 7) {
+						await createDailyNotes(missing);
+					} else {
+						new DailyNoteCreatorModal(this.app, dailyNotes, last ?? today, today).open();
+					}
+				});
+			} else {
+				// Only create today's daily note
+				createDailyNote(moment());
+			}
 		}
 	}
 
@@ -197,7 +205,8 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 		// Find missing notes since first daily note
 		const dailyNotes = getAllDailyNotes();
 		const { first, last } = getFirstAndLastDates(dailyNotes);
-		const missing = findMissingDates(dailyNotes, first, moment());
+		const today = moment();
+		const missing = findMissingDates(dailyNotes, first ?? today, today);
 		const n = missing.length;
 
 		// Create backfill button
@@ -209,7 +218,7 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 				.setButtonText(`Create missing daily notes...`)
 				.setCta()
 				.onClick(() => {
-					new DailyNoteCreatorModal(this.app, dailyNotes, first, moment(), () => {
+					new DailyNoteCreatorModal(this.app, dailyNotes, first ?? today, today, () => {
 						this.display();
 					}).open();
 				})
@@ -217,28 +226,26 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 
 		// Create auto-create toggle
 		new Setting(containerEl)
-			.setName(`Auto-create missed daily notes when starting Obsidian`)
-			.setDesc(`Since last daily (` + (last ? last.format(format) : `never`) + `)`)
+			.setName(`Create daily note when starting Obsidian`)
 			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.autoCreate)
+				.setValue(this.plugin.settings.autoCreateCurrentDaily)
 				.onChange(async () => {
-					this.plugin.settings.autoCreate = !this.plugin.settings.autoCreate;
+					this.plugin.settings.autoCreateCurrentDaily = !this.plugin.settings.autoCreateCurrentDaily;
 					await this.plugin.saveSettings();
 					this.display();
 				})
 			);
-		// Create auto-create limit slider
-		if (this.plugin.settings.autoCreate) {
-			let limit = new Setting(containerEl)
-				.setName(`Auto-create limit: ` + this.plugin.settings.autoCreateLimit)
-				.setDesc(`Maximum number of files to create without asking for confirmation.`)
-				.addSlider(slider => slider
-					.setValue(this.plugin.settings.autoCreateLimit)
-					.setLimits(0, 10, 1)
-					.onChange(async (value) => {
-						this.plugin.settings.autoCreateLimit = value;
+		// Create auto-backfill toggle
+		if (this.plugin.settings.autoCreateCurrentDaily) {
+			new Setting(containerEl)
+				.setName(`Auto-create missed daily notes when starting Obsidian`)
+				.setDesc(`Since last daily (` + (last ? last.format(format) : `never`) + `)`)
+				.addToggle(toggle => toggle
+					.setValue(this.plugin.settings.autoCreateMissedDailies)
+					.onChange(async () => {
+						this.plugin.settings.autoCreateMissedDailies = !this.plugin.settings.autoCreateMissedDailies;
 						await this.plugin.saveSettings();
-						limit.setName(`Auto-create limit: ` + this.plugin.settings.autoCreateLimit)
+						this.display();
 					})
 				);
 		}
