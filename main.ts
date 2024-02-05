@@ -8,7 +8,7 @@ interface DailyNoteCreatorSettings {
 
 const DEFAULT_SETTINGS: DailyNoteCreatorSettings = {
 	autoCreateCurrentDaily: true,
-	autoCreateMissedDailies: true,
+	autoCreateMissedDailies: false,
 }
 
 // Find the date of the first and last daily notes that exist in the vault
