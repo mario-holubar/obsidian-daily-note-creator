@@ -1,5 +1,5 @@
 import { App, Modal, moment, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
-import { appHasDailyNotesPluginLoaded, getDailyNoteSettings, getAllDailyNotes, getDailyNote, createDailyNote } from "obsidian-daily-notes-interface";
+import { appHasDailyNotesPluginLoaded, getDailyNoteSettings, getAllDailyNotes, getDateFromFile, getDailyNote, createDailyNote } from "obsidian-daily-notes-interface";
 
 interface DailyNoteCreatorSettings {
 	autoCreateCurrentDaily: boolean;
@@ -20,11 +20,10 @@ function getFirstAndLastDates(dailyNotes: Record<string, TFile>) {
 		return { first: null, last: null };
 	}
 
-	let { format } = getDailyNoteSettings();
-	const [, firstNote] = sortedDailyNotes[0];
-	const [, lastNote] = sortedDailyNotes[sortedDailyNotes.length - 1];
-	const firstDate = moment(firstNote.basename, format);
-	const lastDate = moment(lastNote.basename, format);
+	const [, firstFile] = sortedDailyNotes[0];
+	const [, lastFile] = sortedDailyNotes[sortedDailyNotes.length - 1];
+	const firstDate = getDateFromFile(firstFile, `day`);
+	const lastDate = getDateFromFile(lastFile, `day`);
 
 	return { first: firstDate, last: lastDate };
 }
