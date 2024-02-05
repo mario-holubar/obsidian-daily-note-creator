@@ -70,7 +70,7 @@ class DailyNoteCreatorModal extends Modal {
 	}
 
 	onOpen() {
-		let {titleEl, contentEl} = this;
+		let { titleEl, contentEl } = this;
 		titleEl.setText('Create missing daily notes');
 
 		// Create input fields for start and end date
@@ -92,7 +92,7 @@ class DailyNoteCreatorModal extends Modal {
 			this.endDate = moment((event.target as HTMLInputElement).value);
 			update();
 		});
-		
+
 		// Create confirmation buttons
 		let confirmation = new Setting(contentEl)
 			.addButton(confirm => confirm
@@ -128,7 +128,7 @@ class DailyNoteCreatorModal extends Modal {
 	}
 
 	onClose() {
-		let {contentEl} = this;
+		let { contentEl } = this;
 		contentEl.empty();
 	}
 }
@@ -142,7 +142,7 @@ export default class DailyNoteCreator extends Plugin {
 
 		// Create settings tab
 		this.addSettingTab(new DailyNoteCreatorSettingTab(this.app, this));
-		
+
 		// Create command to open the modal dialog
 		this.addCommand({
 			id: 'create-missing-daily-notes',
@@ -158,7 +158,7 @@ export default class DailyNoteCreator extends Plugin {
 				new DailyNoteCreatorModal(this.app, dailyNotes, last ?? today, today).open();
 			}
 		});
-		
+
 		// Create daily notes on startup
 		this.app.workspace.onLayoutReady(async () => {
 			if (!appHasDailyNotesPluginLoaded()) {
@@ -207,11 +207,11 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 		containerEl.empty();
-		
+
 		if (!appHasDailyNotesPluginLoaded()) {
-			containerEl.createEl(`body`, {text: `Enable daily notes to use this plugin.`});
+			containerEl.createEl(`body`, { text: `Enable daily notes to use this plugin.` });
 			return;
 		}
 
@@ -239,7 +239,7 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 
 		// Create auto-create toggle
 		new Setting(containerEl)
-			.setName(`Create daily note when starting Obsidian`)
+			.setName(`Create daily note on startup`)
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.autoCreateCurrentDaily)
 				.onChange(async () => {
@@ -251,7 +251,7 @@ class DailyNoteCreatorSettingTab extends PluginSettingTab {
 		// Create auto-backfill toggle
 		if (this.plugin.settings.autoCreateCurrentDaily) {
 			new Setting(containerEl)
-				.setName(`Auto-create missed daily notes when starting Obsidian`)
+				.setName(`Auto-create missed daily notes on startup`)
 				.setDesc(`Since last daily (` + (last ? last.format(format) : `never`) + `)`)
 				.addToggle(toggle => toggle
 					.setValue(this.plugin.settings.autoCreateMissedDailies)
