@@ -179,7 +179,11 @@ export default class DailyNoteCreator extends Plugin {
 					}
 				} else {
 					// Only create today's daily note
-					createDailyNote(moment());
+					const today = moment();
+					const dailyNotes = getAllDailyNotes();
+					if (!getDailyNote(today, dailyNotes)) {
+						await createDailyNote(today);
+					}
 				}
 			}
 		});
